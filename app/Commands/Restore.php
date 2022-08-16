@@ -9,6 +9,7 @@ use Illuminate\Database\MySqlConnection;
 use Illuminate\Database\PDO\Connection;
 use Illuminate\Support\Facades\DB;
 use LaravelZero\Framework\Commands\Command;
+use Spatie\DbSnapshots\SnapshotRepository;
 
 class Restore extends Command
 {
@@ -17,7 +18,7 @@ class Restore extends Command
      *
      * @var string
      */
-    protected $signature = 'restore {name?}';
+    protected $signature = 'restore {name?} {--file=}';
 
     /**
      * The description of the command.
@@ -36,15 +37,27 @@ class Restore extends Command
     {
         $config = config('database.connections.' . config('database.default'));
 
-        if (DB::connection()->getDriverName() === 'pgsql') {
+        if(DB::connection()->getDriverName() === 'pgsql') {
             DB::connection()->statement("DROP SCHEMA " . $config['schema'] . " CASCADE;");
             DB::connection()->statement("CREATE SCHEMA " . $config['schema']);
         }
 
-        if ($this->argument('name')) {
+        if($this->argument('name')) {
             $args = ['name' => $this->argument('name')];
         } else {
             $args = ['--latest' => true];
+        }
+
+        $file = $this->option('file');
+
+
+        if($file) {
+            $file = str_replace('~', $_SERVER['HOME'], $file);
+            if(file_exists($file)) {
+                copy($file, config("filesystems.disks.snapshots.root") . '/' . basename($file));
+                $args = ['name' => basename($file)];
+            }
+
         }
 
         $this->call('snapshot:load', $args);
